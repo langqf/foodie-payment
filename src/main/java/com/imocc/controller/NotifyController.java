@@ -45,6 +45,29 @@ public class NotifyController {
 	/**
 	 * 支付成功后的微信支付异步通知
 	 */
+	@PostMapping
+	@RequestMapping(value="/wxpay2")
+	public void wxpay2(@RequestBody PayResult payResult) throws Exception {
+		log.info("支付成功后的微信支付异步通知");
+		String merchantOrderId = payResult.getOut_trade_no();			// 商户订单号
+		Integer paidAmount = payResult.getTotal_fee();
+		// ====================== 操作商户自己的业务，比如修改订单状态等 start ==========================
+		String merchantReturnUrl = paymentOrderService.updateOrderPaid(merchantOrderId, paidAmount);
+		log.info("************* 支付成功(微信支付异步通知) - 时间: {} *************", DateUtil.getCurrentDateString(DateUtil.DATETIME_PATTERN));
+		log.info("* 商户订单号: {}", merchantOrderId);
+		log.info("* 实际支付金额: {}", paidAmount);
+		log.info("*****************************************************************************");
+		// 通知天天吃货服务端订单已支付
+		// String url = "http://192.168.1.2:8088/orders/notifyMerchantOrderPaid";
+		MultiValueMap<String, String> requestEntity = new LinkedMultiValueMap<>();
+		requestEntity.add("merchantOrderId", merchantOrderId);
+		String httpStatus = restTemplate.postForObject(merchantReturnUrl, requestEntity, String.class);
+		log.info("*** 通知天天吃货后返回的状态码 httpStatus: {} ***", httpStatus);
+	}
+
+	/**
+	 * 支付成功后的微信支付异步通知
+	 */
 	@RequestMapping(value="/wxpay")
 	public void wxpay(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -107,6 +130,20 @@ public class NotifyController {
 	/**
 	 * @Description: 支付成功后的支付宝异步通知
 	 */
+	@RequestMapping(value="/alipay2")
+	public String alipay2(@RequestBody PayResult payResult) throws Exception {
+		log.info("支付成功后的支付宝异步通知");
+		String out_trade_no = payResult.getOut_trade_no();			// 商户订单号
+		Integer total_amount = payResult.getTotal_fee();			// 支付金额
+		String merchantReturnUrl = paymentOrderService.updateOrderPaid(out_trade_no, CurrencyUtils.getYuan2Fen(total_amount));
+		notifyFoodieShop(out_trade_no, merchantReturnUrl);
+		log.info("************* 支付成功(支付宝异步通知) - 时间: {} *************", DateUtil.getCurrentDateString(DateUtil.DATETIME_PATTERN));
+		log.info("* 订单号: {}", out_trade_no);
+		log.info("* 实付金额: {}", total_amount);
+		log.info("*****************************************************************************");
+		return "success";
+	}
+
 	@RequestMapping(value="/alipay")
 	public String alipay(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -129,9 +166,9 @@ public class NotifyController {
 		}
 
 		boolean signVerified = AlipaySignature.rsaCheckV1(params,
-														aliPayResource.getAlipayPublicKey(),
-														aliPayResource.getCharset(),
-														aliPayResource.getSignType()); //调用SDK验证签名
+				aliPayResource.getAlipayPublicKey(),
+				aliPayResource.getCharset(),
+				aliPayResource.getSignType()); //调用SDK验证签名
 
 		if(signVerified) {//验证成功
 			// 商户订单号
@@ -162,7 +199,6 @@ public class NotifyController {
 			return "fail";
 		}
 	}
-
 	/**
 	 * 通知天天吃货商户平台
 	 */
